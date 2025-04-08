@@ -7,21 +7,15 @@
 #include <stdio.h>
 #include "pico/stdlib.h"
 #include "hardware/gpio.h"
+#include "hardware/adc.h"
 
 #define GPIO_WATCH_PIN 2
-
-#ifdef CYW43_WL_GPIO_LED_PIN
-#include "pico/cyw43_arch.h"
-#endif
-
-#define LED_PIN 16
+#define LED_PIN 25 // GPIO pin for the LED
 
 static char event_str[128];
-int num_pressed = 0;
 
 void gpio_event_string(char *buf, uint32_t events);
 
-// Perform initialisation
 int pico_led_init(void) {
     #if defined(LED_PIN)
         // A device like Pico that uses a GPIO for the LED will define PICO_DEFAULT_LED_PIN
@@ -50,28 +44,22 @@ void gpio_callback(uint gpio, uint32_t events) {
     // Put the GPIO event(s) that just happened into event_str
     // so we can print it
     gpio_event_string(event_str, events);
-    //printf("GPIO %d %s\n", gpio, event_str);
-    num_pressed++;
-    printf("Number of button presses: %d\n", num_pressed);
-    pico_set_led(true);
-    sleep_ms(200);
-    pico_set_led(false);
+    printf("GPIO %d %s\n", gpio, event_str);
 }
 
+adc_init(); // init the adc module
+adc_gpio_init(26); // set ADC0 pin to be adc input instead of GPIO
+adc_select_input(0); // select to read from ADC0
 
 int main() {
     stdio_init_all();
+
     printf("Hello GPIO IRQ\n");
     gpio_init(GPIO_WATCH_PIN);
-    int rc = pico_led_init();
-    hard_assert(rc == PICO_OK);
-    while(true){
-        gpio_set_irq_enabled_with_callback(GPIO_WATCH_PIN, GPIO_IRQ_EDGE_RISE, true, &gpio_callback);
+    gpio_set_irq_enabled_with_callback(GPIO_WATCH_PIN, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &gpio_callback);
 
-        //gpio_set_irq_enabled_with_callback(GPIO_WATCH_PIN, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &gpio_callback);
-    }
-    
-    
+    // Wait forever
+    while (1);
 }
 
 

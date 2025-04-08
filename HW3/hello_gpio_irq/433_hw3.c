@@ -53,13 +53,32 @@ adc_select_input(0); // select to read from ADC0
 
 int main() {
     stdio_init_all();
+    while (!stdio_usb_connected()) {  // waits until the USB port has been opened
+        sleep_ms(100);
+    }
+    printf("Start!\n");
 
-    printf("Hello GPIO IRQ\n");
-    gpio_init(GPIO_WATCH_PIN);
-    gpio_set_irq_enabled_with_callback(GPIO_WATCH_PIN, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &gpio_callback);
+    //gpio_init(GPIO_WATCH_PIN);
+    //gpio_set_irq_enabled_with_callback(GPIO_WATCH_PIN, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &gpio_callback);
 
-    // Wait forever
-    while (1);
+    // Infinite loop to keep the program running
+    while (1) {
+        // TODO:
+        // Turns on an LED
+        // Waits until a button is pressed
+        // Turns off the LED
+
+        // Asks the user to enter a number of analog samples to take, between 1 and 100
+        // Reads the number entered by the user
+        char message[100];
+        scanf("%s", message);
+        printf("message: %s\r\n",message);
+        sleep_ms(50);
+
+        // Reads the voltage on ADC0 that number of times at 100Hz
+        // Prints back the voltages in the units of volts
+        // then loops to ask the user again
+    }
 }
 
 

@@ -60,7 +60,7 @@ int main() {
         sleep_ms(100);
     }
     printf("Start!\n");
-    printf("ADC initial value: %d\n", adc_read()); 
+    //printf("ADC initial value: %d\n", adc_read()); 
 
     gpio_init(GPIO_WATCH_PIN);
     gpio_set_irq_enabled_with_callback(GPIO_WATCH_PIN, GPIO_IRQ_EDGE_RISE, true, &gpio_callback);

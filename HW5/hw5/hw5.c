@@ -1,14 +1,17 @@
 #include <stdio.h>
 #include "pico/stdlib.h"
 #include "hardware/spi.h"
+#include "math.h"
 
 // SPI Defines
 // We are going to use SPI 0, and allocate it to the following GPIO pins
 // Pins can be changed, see the GPIO function select table in the datasheet for information on GPIO assignments
 #define SPI_PORT spi0
-#define CS_DAC   17
+#define CS_DAC   14
 #define PIN_SCK  18
-#define CS_RAM  19
+#define CS_RAM  13
+#define PIN_IN 16
+#define PIN_OUT 19
 
 void spi_ram_init();
 void ram_write(uint16_t addy, float v);
@@ -43,10 +46,12 @@ int main()
     stdio_init_all();
 
     // SPI initialisation. This example will use SPI at 1MHz.
-    spi_init(SPI_PORT, 1000*1000);
+    spi_init(SPI_PORT, 1000000);
     gpio_set_function(CS_DAC,   GPIO_FUNC_SIO);
     gpio_set_function(PIN_SCK,  GPIO_FUNC_SPI);
-    gpio_set_function(CS_RAM, GPIO_FUNC_SPI);
+    gpio_set_function(CS_RAM, GPIO_FUNC_SIO);
+    gpio_set_function(PIN_IN,  GPIO_FUNC_SPI);
+    gpio_set_function(PIN_OUT, GPIO_FUNC_SPI);
     
     // Chip select is active-low, so we'll initialise it to a driven-high state
     gpio_set_dir(CS_DAC, GPIO_OUT);
@@ -65,19 +70,26 @@ int main()
     float_math();
     
 
-    // for (int i = 0; i<1000; i++) {
-    //     union FloatInt num;
-    //     num.f = 1.65 + 1.65*sin(4*3.14*i/1000);
-    //     uint16_t addy = XXX;
-    //     ram_write(addy, num.f);
-    // }    
+    for (int i = 0; i<1000; i++) {
+        union FloatInt num;
+        num.f = 1.65 + 1.65*sin(4*3.14*i/1000);
+        //printf("Write value: %f\n", num.f);
+        uint16_t addy = 0x0000 + i*4;
+        ram_write(addy, num.f);
+    }    
 
+    int counter = 0;
+    union FloatInt val;
     while (true) {
         // read for one address
-        
-        
+        val.f = ram_read(0x0000 + counter*4);
+        counter++;
+        if (counter == 1000) {
+            counter = 0;
+        }
+        //printf("Read value: %f\n", val.f);
         // send float to dac
-        // writeDAC(0, num.f);
+        writeDAC(0, val.f);
 
         sleep_ms(10);
     }
@@ -86,7 +98,7 @@ int main()
 
 void spi_ram_init() {
     uint8_t buf[2];
-    buf[0] = 0b00000101; // i want to change reg
+    buf[0] = 0b00000001; // i want to change reg
     buf[1] = 0b01000000; // sequential mode
     
     cs_select(CS_RAM); // cs low
@@ -101,9 +113,9 @@ void ram_write(uint16_t addy, float v) {
     buf[2] = addy&0xFF; // address low byte
     union FloatInt num;
     num.f = v;
-    buf[3] = (num.i>>24)&0xFF; // data high byte
-    buf[4] = (num.i>>16)&0xFF; // data high byte
-    buf[5] = (num.i>>8)&0xFF; // data high byte
+    buf[3] = (num.i>>24); // data high byte
+    buf[4] = (num.i>>16); // data high byte
+    buf[5] = (num.i>>8); // data high byte
     buf[6] = num.i&0xFF; // data low byte
     
     cs_select(CS_RAM); // cs low
@@ -123,7 +135,7 @@ float ram_read(uint16_t addy) {
     spi_write_read_blocking(spi_default, obuf, ibuf, 7);
     cs_deselect(CS_RAM); // cs high
 
-    num.i = (ibuf[3]<<24) | (ibuf[4]<<16) | (ibuf[5]<<8) | ibuf[6];
+    num.i = (ibuf[3]<<24) | (ibuf[4]<<16) | (ibuf[5]<<8) | (ibuf[6]&0xFF);
 
     return num.f;
 }

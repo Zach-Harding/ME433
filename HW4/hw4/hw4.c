@@ -7,10 +7,9 @@
 // We are going to use SPI 0, and allocate it to the following GPIO pins
 // Pins can be changed, see the GPIO function select table in the datasheet for information on GPIO assignments
 #define SPI_PORT spi0
-#define PIN_Channel_A 15
 #define PIN_CS   14
 #define PIN_SCK  18
-#define PIN_Channel_B 19
+
 
 static inline void cs_select(uint cs_pin) {
     asm volatile("nop \n nop \n nop"); // FIXME

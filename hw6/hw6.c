@@ -24,7 +24,11 @@ int main()
     gpio_pull_up(I2C_SCL);
     // For more examples of I2C use see https://github.com/raspberrypi/pico-examples/tree/master/i2c
     
-    
+    // set up iDDR and GPIO as initialization
+
+    // set up the on board LED to toggle in the infinite loop
+
+
     // I2C EXAMPLE
     
     uint8_t ADDR = 0x50; // CHANGE THIS TO YOUR DEVICE'S I2C ADDRESS
@@ -38,10 +42,17 @@ int main()
     i2c_write_blocking(i2c_default, ADDR, &reg, 1, true);
     i2c_read_blocking(i2c_default, ADDR, buf, 2, false);
 
+    // ASSIGNMENT
+    // The goal is to read from GP0, and if the button is pushed, 
+    // turn on GP7, else turn off GP7. Blink the builtin green LED 
+    // that is connected directly to the Pico at some frequency as 
+    // a heart-beat, so that you know the Pico is running, and 
+    // hasn't crashed due to the I2C getting our of sync.
 
+    // non sequential mode so you dont have to read every register
 
     
-    while (!stdio_usb_connected()) {  // waits until the USB port has been opened
+    while (!stdio_usb_connected()) {  // waits till port is open
         sleep_ms(100);
     }
     printf("Start!\n");

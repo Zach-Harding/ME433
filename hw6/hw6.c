@@ -8,6 +8,10 @@
 #define I2C_PORT i2c0
 #define I2C_SDA 8
 #define I2C_SCL 9
+#define I2C_ADDR 0b01000001 // default write
+#define IODIR 0x00 // I2C register for IODIR
+#define GPIO 0x09 // I2C register for GPIO
+#define OLAT 0x0A // I2C register for OLAT
 
 
 
@@ -24,7 +28,18 @@ int main()
     gpio_pull_up(I2C_SCL);
     // For more examples of I2C use see https://github.com/raspberrypi/pico-examples/tree/master/i2c
     
-    // set up iDDR and GPIO as initialization
+    // set up iDDR
+    // write 0b01111111 to IODIR register to set all pins to input except GP7
+    uint8_t buf[2] = {0x00, 0x00}; // CHANGE TO DATA YOU WANT TO WRITE 
+    buf[0] = IODIR; // register address
+    buf[1] = 0b01111111; // set all pins to input except GP7
+    i2c_write_blocking(i2c_default, I2C_ADDR, buf, 2, false);
+
+    // set up GPIO
+    // read 8 bits from this register to see the state of the GPIO pins
+    // 0b00000000 will mean all pins are low, 0b11111111 will mean all pins are high
+
+    // set bits in teh OLAT register to set the state of the GPIO pins
 
     // set up the on board LED to toggle in the infinite loop
 
@@ -33,7 +48,7 @@ int main()
     
     uint8_t ADDR = 0x50; // CHANGE THIS TO YOUR DEVICE'S I2C ADDRESS
     uint8_t reg = 0x00; // CHANGE THIS TO YOUR DEVICE'S REGISTER ADDRESS
-    uint8_t buf[2] = {0x00, 0x00}; // CHANGE TO DATA YOU WANT TO WRITE 
+    
 
     // write
     i2c_write_blocking(i2c_default, ADDR, buf, 2, false);
@@ -48,6 +63,10 @@ int main()
     // that is connected directly to the Pico at some frequency as 
     // a heart-beat, so that you know the Pico is running, and 
     // hasn't crashed due to the I2C getting our of sync.
+
+    // read from GP0
+    i2c_write_blocking(i2c_default, GPIO, &reg, 1, true);
+    i2c_read_blocking(i2c_default, GPIO, buf, 2, false);
 
     // non sequential mode so you dont have to read every register
 

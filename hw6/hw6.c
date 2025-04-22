@@ -92,21 +92,14 @@ int main()
 
     while (true) {
         pico_set_led(true);
-        //toggle_pin(I2C_ADDR, OLAT, 7, 0); // set GP7 low
         sleep_ms(100);
         pico_set_led(false);
-        toggle_pin(I2C_ADDR, OLAT, 7, 1); // set GP7 high
         sleep_ms(100);
-        printf("Count: %d\n", count);
-        printf("Pin 0: %d\n", read_pin(0)); 
-        printf("Pin 7: %d\n", read_pin(7));
-        val = read_pins(I2C_ADDR, GPIO); // read the state of the GPIO pins
-        printf("GPIO: %x\n", val);
 
-        if (count == 20) {
-            break;
+        if(read_pin(0)) { // read the state of GP0
+            toggle_pin(I2C_ADDR, OLAT, 7, 1); // set GP7 high
         } else {
-            count++;
+            toggle_pin(I2C_ADDR, OLAT, 7, 0); // set GP7 low
         }
 
     }
@@ -157,5 +150,5 @@ static uint8_t read_pins(uint8_t addr, uint8_t reg) {
 
 static bool read_pin(uint8_t pin) {
     uint8_t pin_val = read_pins(I2C_ADDR, GPIO); // read the state of the GPIO pins
-    return (pin_val & (1 << pin)); // check if the pin is high or low
+    return (pin_val & (1 << pin)) != 0; // check if the pin is high or low
 }

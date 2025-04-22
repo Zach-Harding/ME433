@@ -6,8 +6,8 @@
 // This example will use I2C0 on GPIO8 (SDA) and GPIO9 (SCL) running at 400KHz.
 // Pins can be changed, see the GPIO function select table in the datasheet for information on GPIO assignments
 #define I2C_PORT i2c0
-#define I2C_SDA 20
-#define I2C_SCL 21
+#define I2C_SDA 4
+#define I2C_SCL 5
 #define I2C_ADDR 0x20 // I2C address of the device
 #define IODIR 0x00 // I2C register for IODIR
 #define GPIO 0x09 // I2C register for GPIO
@@ -16,7 +16,9 @@
 static void iodir_init();
 static void olat_init();
 static void set_pin(uint8_t addr, uint8_t reg, uint8_t pin);
-static uint8_t read_pin(uint8_t addr, uint8_t reg);
+static uint8_t read_pins(uint8_t addr, uint8_t reg);
+static void toggle_pin(uint8_t addr, uint8_t reg, uint8_t pin, bool on);
+static bool read_pin(uint8_t pin);
 
 
 
@@ -47,6 +49,8 @@ void pico_set_led(bool led_on) {
 int main()
 {
     stdio_init_all();
+    int rc = pico_led_init();
+    hard_assert(rc == PICO_OK);
 
     // I2C Initialisation. Using it at 400Khz.
     i2c_init(I2C_PORT, 400*1000);
@@ -62,8 +66,7 @@ int main()
     // set up GPIO
     olat_init();
     // LED initialisation
-    int rc = pico_led_init();
-    hard_assert(rc == PICO_OK);
+    
     uint8_t val;
 
     
@@ -80,29 +83,31 @@ int main()
     while (!stdio_usb_connected()) {  // waits till port is open
         sleep_ms(100);
     }
+    
     printf("Start!\n");
-    val = read_pin(I2C_ADDR, GPIO); // read the state of the GPIO pins
+    val = read_pins(I2C_ADDR, GPIO); // read the state of the GPIO pins
     printf("GPIO: %x\n", val);
 
-    set_pin(I2C_ADDR, OLAT, 0b10000000); // set GP7 high
-
-    sleep_ms(100);
-    val = read_pin(I2C_ADDR, GPIO); // read the state of the GPIO pins
-    printf("GPIO: %d\n", val);
-
-   
+   int count = 0;
 
     while (true) {
-        // clear_pin(I2C_ADDR, OLAT, 7); // set GP7 low
         pico_set_led(true);
+        //toggle_pin(I2C_ADDR, OLAT, 7, 0); // set GP7 low
         sleep_ms(100);
         pico_set_led(false);
+        toggle_pin(I2C_ADDR, OLAT, 7, 1); // set GP7 high
         sleep_ms(100);
-
-        val = read_pin(I2C_ADDR, GPIO); // read the state of the GPIO pins
+        printf("Count: %d\n", count);
+        printf("Pin 0: %d\n", read_pin(0)); 
+        printf("Pin 7: %d\n", read_pin(7));
+        val = read_pins(I2C_ADDR, GPIO); // read the state of the GPIO pins
         printf("GPIO: %x\n", val);
 
-        
+        if (count == 20) {
+            break;
+        } else {
+            count++;
+        }
 
     }
 }
@@ -112,26 +117,45 @@ static void iodir_init() {
     uint8_t buf[2];
     buf[0] = IODIR; // register address
     buf[1] = 0b01111111; // set all pins to input except GP7
-    i2c_write_blocking(i2c_default, I2C_ADDR, buf, 2, false);
+    i2c_write_blocking(I2C_PORT, I2C_ADDR, buf, 2, false);
 }
 
 static void olat_init() {
     uint8_t buf[2];
     buf[0] = OLAT; // register address
     buf[1] = 0b00000000; // set all pins to low
-    i2c_write_blocking(i2c_default, I2C_ADDR, buf, 2, false);
+    i2c_write_blocking(I2C_PORT, I2C_ADDR, buf, 2, false);
+    buf[0] = GPIO; // register address
+    i2c_write_blocking(I2C_PORT, I2C_ADDR, buf, 2, false); 
+}
+
+static void toggle_pin(uint8_t addr, uint8_t reg, uint8_t pin, bool on) {
+    uint8_t val = read_pins(addr, reg); 
+    // printf("before val: %x\n", val);
+    if (on) {
+        val |= (1 << pin); 
+    } else {
+        val &= ~(1 << pin); 
+    }
+    // printf("after val: %x\n", val); 
+    set_pin(addr, reg, val); // write the new value to the register
 }
 
 static void set_pin(uint8_t addr, uint8_t reg, uint8_t value) {
     uint8_t buf[2];
     buf[0] = reg; // register address
     buf[1] = value; // value to set
-    i2c_write_blocking(i2c_default, addr, buf, 2, false);
+    i2c_write_blocking(I2C_PORT, addr, buf, 2, false);
 }
 
-static uint8_t read_pin(uint8_t addr, uint8_t reg) {
+static uint8_t read_pins(uint8_t addr, uint8_t reg) {
     uint8_t buf;
-    i2c_write_blocking(i2c_default, addr, &reg, 1, true);
-    i2c_read_blocking(i2c_default, addr, &buf, 1, false);
+    i2c_write_blocking(I2C_PORT, addr, &reg, 1, true);
+    i2c_read_blocking(I2C_PORT, addr, &buf, 1, false);
     return buf; // return the value read from the register
+}
+
+static bool read_pin(uint8_t pin) {
+    uint8_t pin_val = read_pins(I2C_ADDR, GPIO); // read the state of the GPIO pins
+    return (pin_val & (1 << pin)); // check if the pin is high or low
 }

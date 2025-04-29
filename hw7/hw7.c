@@ -3,6 +3,7 @@
 #include "hardware/i2c.h"
 #include "font.h"
 #include "ssd1306.h"
+#include "hardware/adc.h"
 
 // I2C defines
 // This example will use I2C0 on GPIO8 (SDA) and GPIO9 (SCL) running at 400KHz.
@@ -41,7 +42,17 @@ void pico_set_led(bool led_on) {
 
 int main()
 {
+    
     stdio_init_all();
+
+    adc_init(); // init the adc module
+    adc_gpio_init(26); // set ADC0 pin to be adc input instead of GPIO
+    adc_select_input(0); // select to read from ADC0
+
+    while (!stdio_usb_connected()) {  // waits until the USB port has been opened
+        sleep_ms(100);
+    }
+    printf("Start!\n");
     int rc = pico_led_init();
     hard_assert(rc == PICO_OK);
 
@@ -54,46 +65,37 @@ int main()
     //gpio_pull_up(I2C_SCL);
     // For more examples of I2C use see https://github.com/raspberrypi/pico-examples/tree/master/i2c
 
+    // printf("before setup\n");
     ssd1306_setup();
+    // printf("after setup\n");
     ssd1306_clear();
+    // printf("clear\n");
     ssd1306_update();
+    // printf("update\n");
     double update_time;
     absolute_time_t t_start, t_end;
+    // printf("after setup\n");
 
-    // while (!stdio_usb_connected()) {  // waits until the USB port has been opened
-    //     sleep_ms(100);
-    // }
-    // printf("Start!\n");
+
     
 
     while (true) {
         pico_set_led(true);
-        sleep_ms(100);
-        pico_set_led(false);
-        sleep_ms(100);
 
 
+        char message[50];
+        t_start = get_absolute_time(); 
         ssd1306_clear();
-        printf("clear\n");
+
+        uint16_t result = adc_read(); 
+        float voltage = (float)result * 3.3f / (1 << 12); 
+        sprintf(message, "ADC0: %f V", voltage); 
+        draw_message(0, 0, message);
+        sprintf(message, "FPS: %f", 1.0 / (update_time / 1000000.0));
+        draw_message(0, 25, message);
         ssd1306_update();
-        sleep_ms(100);
-        ssd1306_drawPixel(10, 10, 1);
-        printf("drawPixel\n");
-        ssd1306_update();
-        sleep_ms(100);
-
-
-
-        // char message[50];
-        // t_start = get_absolute_time(); 
-        // ssd1306_clear();
-        // sprintf(message, "Hello");
-        // draw_message(10, 20, message);
-        // ssd1306_update();
-        // t_end = get_absolute_time(); 
-        // update_time = (double)absolute_time_diff_us(t_start, t_end);
-        // sleep_ms(100);
-        // printf("Update time: %f ms\n", update_time / 1000.0);
+        t_end = get_absolute_time(); 
+        update_time = (double)absolute_time_diff_us(t_start, t_end);
     }
 }
 

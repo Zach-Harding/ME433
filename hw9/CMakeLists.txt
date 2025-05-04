@@ -42,9 +42,11 @@ add_executable(hello_multicore
 # Add pico_multicore which is required for multicore functionality
 target_link_libraries(hello_multicore
         pico_stdlib
-        pico_multicore)
+        pico_multicore
+        hardware_adc)
 
-        
+
+
 pico_enable_stdio_uart(hello_multicore 0)
 pico_enable_stdio_usb(hello_multicore 1)
 

@@ -34,6 +34,19 @@
 
 #include "usb_descriptors.h"
 
+#define UP_PIN 17
+#define DOWN_PIN 14
+#define LEFT_PIN 15
+#define RIGHT_PIN 16
+#define MODE_PIN 13
+#define LED_PIN 25
+
+enum {
+    MODE_REGULAR = 0,
+    MODE_REMOTE,
+    MODE_COUNT
+};
+
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
@@ -54,13 +67,12 @@ static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
 void led_blinking_task(void);
 void hid_task(void);
-void circle_mode(void);
+void circle_mode(int8_t *xdelta, int8_t *ydelta);
+void regular_mode(int8_t *xdelta, int8_t *ydelta);
 
-int last_toggle_time = 0;
-int angle = 0;
-int8_t xdelta = 0;
-int8_t ydelta = 0;
-
+int current_mode = MODE_REGULAR;
+uint32_t button_press_time[4] = {0}; // For up, down, left, right
+uint32_t last_mode_toggle_time = 0;
 
 
 /*------------- MAIN -------------*/
@@ -70,16 +82,22 @@ int main(void)
   board_init();
   gpio_init(15);
   gpio_init(16);
-  // gpio_init(XX);
-  // gpio_init(YY);
+  gpio_init(14);
+  gpio_init(13);
+  gpio_init(17);
   gpio_set_dir(15, GPIO_IN);
   gpio_set_dir(16, GPIO_IN);
-  // gpio_set_dir(XX, GPIO_IN);
-  // gpio_set_dir(YY, GPIO_IN);
+  gpio_set_dir(14, GPIO_IN);
+  gpio_set_dir(13, GPIO_IN);
+  gpio_set_dir(17, GPIO_IN);
   gpio_pull_up(15);
   gpio_pull_up(16);
-  // gpio_pull_up(XX);
-  // gpio_pull_up(YY);
+  gpio_pull_up(14);
+  gpio_pull_up(13);
+  gpio_pull_up(17);
+
+  gpio_init(LED_PIN);
+  gpio_set_dir(LED_PIN, GPIO_OUT);
 
 
   // init device stack on configured roothub port
@@ -103,24 +121,6 @@ int main(void)
 //--------------------------------------------------------------------+
 
 
-  void circle_mode(){
-  int now = get_absolute_time();
-    //if (now - last_toggle_time > 500){
-    if (true){
-      angle += 0.1;
-      if (angle > 360){
-        angle = 0;
-      }
-      int x = 5 * cos(angle);
-      int y = 5 * sin(angle);
-      
-      xdelta = (uint8_t)x;
-      ydelta = (uint8_t)y;
-
-      last_toggle_time = now;
-      
-    }
-  }
 
 // Invoked when device is mounted
 void tud_mount_cb(void)
@@ -183,26 +183,24 @@ static void send_hid_report(uint8_t report_id, uint32_t btn)
 
     case REPORT_ID_MOUSE:
     {
-      xdelta = 0;
-      ydelta = 0;
-
-      if(!gpio_get(15)){
-        xdelta = -5;
+      static int8_t xdelta = 0;
+      static int8_t ydelta = 0;
+      
+      // Check mode toggle button
+      if (!gpio_get(MODE_PIN)) {
+          uint32_t current_time = board_millis();
+          if (current_time - last_mode_toggle_time > 300) { // debounce
+              current_mode = (current_mode + 1) % MODE_COUNT;
+              last_mode_toggle_time = current_time;
+              gpio_put(LED_PIN, current_mode == MODE_REMOTE);
+          }
       }
-      if(!gpio_get(16)){
-        xdelta = 5;
-      }
-      // if(!gpio_get(XX)){
-      //   ydelta = -5;
-      // }
-      // if(!gpio_get(YY)){
-      //   ydelta = 5;
-      // }
-      if(true){
-        
-        circle_mode();
-        
-
+      
+      // Handle current mode
+      if (current_mode == MODE_REGULAR) {
+          regular_mode(&xdelta, &ydelta);
+      } else {
+          circle_mode(&xdelta, &ydelta);
       }
 
       // no button, right + down, no scroll, no pan
@@ -368,4 +366,77 @@ void led_blinking_task(void)
 
   board_led_write(led_state);
   led_state = 1 - led_state; // toggle
+}
+
+
+
+void regular_mode(int8_t *xdelta, int8_t *ydelta) {
+    *xdelta = 0;
+    *ydelta = 0;
+    
+    uint32_t current_time = board_millis();
+    
+    // Up button
+    if (!gpio_get(UP_PIN)) {
+        if (button_press_time[0] == 0) {
+            button_press_time[0] = current_time;
+        }
+        uint32_t press_duration = current_time - button_press_time[0];
+        *ydelta = -1 - (press_duration / 300); // Speed increases every 300ms
+        if (*ydelta < -4) *ydelta = -4; // Max speed
+    } else {
+        button_press_time[0] = 0;
+    }
+    
+    // Down button
+    if (!gpio_get(DOWN_PIN)) {
+        if (button_press_time[1] == 0) {
+            button_press_time[1] = current_time;
+        }
+        uint32_t press_duration = current_time - button_press_time[1];
+        *ydelta = 1 + (press_duration / 300);
+        if (*ydelta > 4) *ydelta = 4;
+    } else {
+        button_press_time[1] = 0;
+    }
+    
+    // Left button
+    if (!gpio_get(LEFT_PIN)) {
+        if (button_press_time[2] == 0) {
+            button_press_time[2] = current_time;
+        }
+        uint32_t press_duration = current_time - button_press_time[2];
+        *xdelta = -1 - (press_duration / 300);
+        if (*xdelta < -4) *xdelta = -4;
+    } else {
+        button_press_time[2] = 0;
+    }
+    
+    // Right button
+    if (!gpio_get(RIGHT_PIN)) {
+        if (button_press_time[3] == 0) {
+            button_press_time[3] = current_time;
+        }
+        uint32_t press_duration = current_time - button_press_time[3];
+        *xdelta = 1 + (press_duration / 300);
+        if (*xdelta > 4) *xdelta = 4;
+    } else {
+        button_press_time[3] = 0;
+    }
+}
+
+void circle_mode(int8_t *xdelta, int8_t *ydelta) {
+    static uint32_t last_circle_time = 0;
+    static float angle = 0.0f;
+    
+    uint32_t current_time = board_millis();
+    if (current_time - last_circle_time > 50) { // Update every 50ms
+        angle += 0.1f; // Adjust this for speed of rotation
+        if (angle > 2 * M_PI) angle -= 2 * M_PI;
+        
+        *xdelta = (int8_t)(3 * cosf(angle));
+        *ydelta = (int8_t)(3 * sinf(angle));
+        
+        last_circle_time = current_time;
+    }
 }

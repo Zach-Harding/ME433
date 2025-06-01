@@ -11,9 +11,36 @@
 #define I2C_PORT i2c1
 #define I2C_SDA 14
 #define I2C_SCL 15
+// config registers
+#define CONFIG 0x1A
+#define GYRO_CONFIG 0x1B
+#define ACCEL_CONFIG 0x1C
+#define PWR_MGMT_1 0x6B
+#define PWR_MGMT_2 0x6C
+// sensor data registers:
+#define ACCEL_XOUT_H 0x3B
+#define ACCEL_XOUT_L 0x3C
+#define ACCEL_YOUT_H 0x3D
+#define ACCEL_YOUT_L 0x3E
+#define ACCEL_ZOUT_H 0x3F
+#define ACCEL_ZOUT_L 0x40
+#define TEMP_OUT_H   0x41
+#define TEMP_OUT_L   0x42
+#define GYRO_XOUT_H  0x43
+#define GYRO_XOUT_L  0x44
+#define GYRO_YOUT_H  0x45
+#define GYRO_YOUT_L  0x46
+#define GYRO_ZOUT_H  0x47
+#define GYRO_ZOUT_L  0x48
+#define WHO_AM_I     0x75
+
+
+
 
 void draw_message(int x, int y, char *message);
 void draw_char(int x, int y, char c);
+void read_sensor_data(float *accel_x, float *accel_y, float *accel_z, float *gyro_x, float *gyro_y, float *gyro_z, float *temperature);
+void draw_accel_line(float x, float y);
 
 int pico_led_init(void) {
 #if defined(PICO_DEFAULT_LED_PIN)
@@ -45,13 +72,7 @@ int main()
     
     stdio_init_all();
 
-    adc_init(); // init the adc module
-    adc_gpio_init(26); // set ADC0 pin to be adc input instead of GPIO
-    adc_select_input(0); // select to read from ADC0
-
-    while (!stdio_usb_connected()) {  // waits until the USB port has been opened
-        sleep_ms(100);
-    }
+    
     printf("Start!\n");
     int rc = pico_led_init();
     hard_assert(rc == PICO_OK);
@@ -77,7 +98,23 @@ int main()
     // printf("after setup\n");
 
 
+
+    // Set the PWR_MGMT_1 register to 0x00 to wake up the MPU6050
+    uint8_t buf[2];
+    buf[0] = PWR_MGMT_1;
+    buf[1] = 0x00; // Wake up the MPU6050
+    i2c_write_blocking(I2C_PORT, 0x68, buf, 2, false);
+
+    buf[0] = ACCEL_CONFIG;
+    buf[1] = 0x00; // ±2g
+    i2c_write_blocking(I2C_PORT, 0x68, buf, 2, false);
     
+
+    buf[0] = GYRO_CONFIG;
+    buf[1] = 0x18; // ±2000 dps
+    i2c_write_blocking(I2C_PORT, 0x68, buf, 2, false);
+
+     float accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z, temperature;
 
     while (true) {
         pico_set_led(true);
@@ -87,12 +124,15 @@ int main()
         t_start = get_absolute_time(); 
         ssd1306_clear();
 
-        uint16_t result = adc_read(); 
-        float voltage = (float)result * 3.3f / (1 << 12); 
-        sprintf(message, "ADC0: %f V", voltage); 
-        draw_message(0, 0, message);
-        sprintf(message, "FPS: %f", 1.0 / (update_time / 1000000.0));
-        draw_message(0, 25, message);
+        read_sensor_data(&accel_x, &accel_y, &accel_z, &gyro_x, &gyro_y, &gyro_z, &temperature);
+        // sprintf(message, "AX: %.2f g", accel_x);
+        // draw_message(0, 0, message);
+        // sprintf(message, "AY: %.2f g", accel_y);
+        // draw_message(0, 10, message);
+        // sprintf(message, "Temp: %.2f C", temperature);
+        // draw_message(0, 20, message);
+        draw_accel_line(accel_x, accel_y);
+
         ssd1306_update();
         t_end = get_absolute_time(); 
         update_time = (double)absolute_time_diff_us(t_start, t_end);
@@ -122,4 +162,70 @@ void draw_char(int x, int y, char c) {
             }
         }
     }
+}
+
+void read_sensor_data(float *accel_x, float *accel_y, float *accel_z, float *gyro_x, float *gyro_y, float *gyro_z, float *temperature) {
+    uint8_t buf[14];
+    // Read 14 bytes starting from ACCEL_XOUT_H
+    uint8_t reg = ACCEL_XOUT_H;
+    i2c_write_blocking(I2C_PORT, 0x68, &reg, 1, true);
+    i2c_read_blocking(I2C_PORT, 0x68, buf, 14, false);
+    int16_t ax, ay, az, gx, gy, gz, t;
+
+    // Combine the bytes into signed integers
+    ax = (buf[0] << 8) | buf[1];
+    ay = (buf[2] << 8) | buf[3];
+    az = (buf[4] << 8) | buf[5];
+    t = (buf[6] << 8) | buf[7];
+    gx = (buf[8] << 8) | buf[9];
+    gy = (buf[10] << 8) | buf[11];
+    gz = (buf[12] << 8) | buf[13];
+
+    // Convert the values to appropriate units
+    float accel_x_g = (float) ax * 0.000061f; // g
+    float accel_y_g = (float) ay * 0.000061f; // g
+    float accel_z_g = (float) az * 0.000061f; // g
+    float temperature_c = (float) (t / 340.00f) + 36.53f; // degrees Celsius
+
+    // Store the results in the provided pointers
+    *accel_x = accel_x_g;
+    *accel_y = accel_y_g;
+    *accel_z = accel_z_g;
+    *temperature = temperature_c;
+
+    printf("Accel X: %.2f g, Accel Y: %.2f g, Accel Z: %.2f g\n", accel_x_g, accel_y_g, accel_z_g);
+    printf("Temperature: %.2f C\n", temperature_c);
+}
+
+void draw_accel_line(float x, float y) {
+    // Scale factors to make the line visible but not too long
+    if (y < -0.75f) {
+        draw_message(60,10,"|");
+        draw_message(60,5,"^");
+    } else if ((y < -0.5f) && (y > -0.75f)) {
+        draw_message(60,10,"^");
+    } else if (y > 0.75f) {
+        draw_message(60,20,"|");
+        draw_message(60,25,"v");
+    } else if ((y > 0.5f) && (y < 0.75f)) {
+        draw_message(60,20,"v");
+    } else {
+        draw_message(60,0," ");
+        draw_message(60,10," ");    
+        draw_message(60,20," ");
+        draw_message(60,30," ");  
+    }
+
+    if (x < -0.75f) {
+        draw_message(65,15,"-->");
+    } else if ((x < -0.5f) && (x > -0.75f)) {
+        draw_message(65,15,"->");
+    } else if (x > 0.75f) {
+        draw_message(40,15,"<--");
+    } else if ((x > 0.5f) && (x < 0.75f)) {
+        draw_message(50,15,"<-");
+    }else {
+        draw_message(30,15,"                        ");
+    }
+    
 }

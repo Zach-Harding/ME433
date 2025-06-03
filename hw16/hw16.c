@@ -11,7 +11,7 @@
 
 // PWM Configurations
 #define PWM_FREQ 20000  // 20 kHz (inaudible frequency)
-#define PWM_WRAP 100    // Allows duty cycle from 0-100%
+#define PWM_WRAP 1000    // Allows duty cycle from 0-100%
 
 // Motor Control Structure
 typedef struct {
@@ -54,10 +54,10 @@ void init_motor(MotorController *motor, uint in1, uint in2) {
 }
 
 void update_motor(MotorController *motor) {
-    // Limit duty cycle to ±100%
-    if (motor->duty_cycle > 100) motor->duty_cycle = 100;
-    if (motor->duty_cycle < -100) motor->duty_cycle = -100;
-    
+    // Limit duty cycle to ±1000
+    if (motor->duty_cycle > 1000) motor->duty_cycle = 1000;
+    if (motor->duty_cycle < -1000) motor->duty_cycle = -1000;
+
     if (motor->duty_cycle > 0) {
         // Forward direction
         pwm_set_chan_level(motor->in1_slice, motor->in1_channel, motor->duty_cycle);
@@ -102,18 +102,18 @@ int main() {
         if (c != PICO_ERROR_TIMEOUT) {
             switch (c) {
                 case '+':
-                    motor1.duty_cycle += 1;
+                    motor1.duty_cycle += 5;
                     update_motor(&motor1);
                     printf("Duty cycle: %d%%\n", motor1.duty_cycle);
-                    motor2.duty_cycle += 1;
+                    motor2.duty_cycle += 5;
                     update_motor(&motor2);
                     printf("Duty cycle: %d%%\n", motor2.duty_cycle);
                     break;
                 case '-':
-                    motor1.duty_cycle -= 1;
+                    motor1.duty_cycle -= 5;
                     update_motor(&motor1);
                     printf("Duty cycle: %d%%\n", motor1.duty_cycle);
-                    motor2.duty_cycle -= 1;
+                    motor2.duty_cycle -= 5;
                     update_motor(&motor2);
                     printf("Duty cycle: %d%%\n", motor2.duty_cycle);
                     break;

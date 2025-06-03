@@ -126,14 +126,14 @@ int main()
 
         // make offset into duty cycles (+/-800 is slowest speed, +/-1000 is fastest speed)
         if (offset > 4) {
-            motor1.duty_cycle = 900 + offset * 5; // speed up motor1 when turning left
-            motor2.duty_cycle = 900 - offset * 5; // slow down motor2 when turning left
+            motor1.duty_cycle = 900 + offset * 3; // speed up motor1 when turning left
+            motor2.duty_cycle = 900 - offset * 3; // slow down motor2 when turning left
         } else if (offset < -4) {
-            motor1.duty_cycle = 900 + offset * 5; // slow down motor1 when turning right
-            motor2.duty_cycle = 900 - offset * 5; // speed up motor2 when turning right
+            motor1.duty_cycle = 900 + offset * 3; // slow down motor1 when turning right
+            motor2.duty_cycle = 900 - offset * 3; // speed up motor2 when turning right
         } else {
-            motor1.duty_cycle = 1000; // keep both motors at a constant speed when centered
-            motor2.duty_cycle = 1000;
+            motor1.duty_cycle = 850; // keep both motors at a constant speed when centered
+            motor2.duty_cycle = 850;
         }
         // Limit duty cycle to ±1000
         if (motor1.duty_cycle > 1000) motor1.duty_cycle = 1000;
